@@ -1,0 +1,76 @@
+🎯 Project Purpose
+A serverless, cost-optimized Azure architecture to manage billing records where:
+
+Recent records (≤90 days) stay in Cosmos DB (fast, expensive)
+
+Older records (>90 days) are archived in Blob Storage (cheap, slower)
+
+All records are still accessible via a single API, using a fallback mechanism
+
+🏗️ Architecture Components
+Component	Description
+Azure Cosmos DB	Primary storage for active records
+Azure Blob Storage	Archive storage for old records
+Azure Function (API)	Serves billing record requests from Cosmos or Blob
+Azure Function (Timer)	Archives old records from Cosmos to Blob
+Terraform	Provisions all cloud infrastructure
+GitHub Actions	Automates CI/CD for infra and functions
+
+📂 Folder Structure
+Path	Description
+.github/workflows/deploy.yml	GitHub Actions CI/CD pipeline
+infra/main.tf	Terraform script for Azure resources
+functions/archiveOldRecords/	Timer-triggered archiving function
+functions/getBillingRecord/	HTTP-triggered API function
+shared/config.js	Environment + connection config
+README.md	Documentation
+docs/ (optional)	Architecture diagrams, if added
+
+🚀 Deployment Workflow
+Developer pushes code to main branch
+
+GitHub Actions:
+
+Provisions infra via Terraform
+
+Deploys both Azure Functions
+
+Cosmos DB and Blob Storage are live and ready
+
+🔐 Environment & Secrets Required
+Secret Name	Used In	Purpose
+AZURE_CREDENTIALS	GitHub Action	Authenticate Terraform & Azure
+AZURE_FUNCTIONAPP_PUBLISH_PROFILE	GitHub Action	Deploy functions
+COSMOS_DB_ENDPOINT, COSMOS_DB_KEY	Azure Function	Connect to Cosmos DB
+BLOB_CONN_STRING	Azure Function	Connect to Blob Storage
+
+🔁 Function Behavior
+1. getBillingRecord (API)
+Checks Cosmos DB first
+
+If record not found → fallback to Blob Storage
+
+2. archiveOldRecords (Timer)
+Finds records older than 90 days
+
+Moves them to Blob as JSON
+
+Marks as archived in Cosmos
+
+Cosmos TTL eventually deletes old ones
+
+📊 Benefits
+❄️ Archived data is still accessible
+
+💸 Reduces Cosmos DB RU/s and storage costs
+
+⚙️ Fully automated with GitHub Actions + Terraform
+
+🔁 No change needed to frontend/API consumers
+
+✅ Optional Enhancements
+Add a monitoring alert if archiving fails
+
+Rehydrate archived records temporarily
+
+Add Azure Front Door or API Management
