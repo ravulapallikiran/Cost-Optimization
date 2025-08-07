@@ -1,0 +1,27 @@
+const { CosmosClient } = require("@azure/cosmos");
+const { BlobServiceClient } = require("@azure/storage-blob");
+const config = require('../../shared/config');
+
+module.exports = async function (context, myTimer) {
+  const cosmos = new CosmosClient({ endpoint: config.cosmosDb.endpoint, key: config.cosmosDb.key });
+  const container = cosmos.database(config.cosmosDb.databaseId).container(config.cosmosDb.containerId);
+  const blobSvc = BlobServiceClient.fromConnectionString(config.blob.connectionString);
+  const blobContainer = blobSvc.getContainerClient(config.blob.containerName);
+
+  const cutoffEpoch = Math.floor((Date.now() - 90 * 24 * 60 * 60 * 1000) / 1000);
+  const query = {
+    query: "SELECT * FROM c WHERE c._ts < @cutoff AND NOT IS_DEFINED(c.archived)",
+    parameters: [{ name: "@cutoff", value: cutoffEpoch }]
+  };
+
+  const { resources: oldRecords } = await container.items.query(query).fetchAll();
+  for (const record of oldRecords) {
+    const blobName = `${record.id}.json`;
+    const blockBlob = blobContainer.getBlockBlobClient(blobName);
+    await blockBlob.upload(JSON.stringify(record), Buffer.byteLength(JSON.stringify(record)));
+
+    await container.item(record.id, record.id).patch([{ op: "add", path: "/archived", value: true }]);
+  }
+
+  context.log(`Archived ${oldRecords.length} records.`);
+};
